@@ -6,3 +6,5 @@ lib/pycocotools/_mask.c
 lib/pycocotools/_mask.so
 output
 results
+*tgz
+data/
