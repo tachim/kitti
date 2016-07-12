@@ -122,6 +122,7 @@ def parse_args():
                         action='store_true')
     parser.add_argument('--net', dest='demo_net', help='Network to use [vgg16]',
                         choices=NETS.keys(), default='vgg16')
+    parser.add_argument('--n_every', default=None, type=int)
     parser.add_argument('frames', nargs='*')
 
     args = parser.parse_args()
@@ -159,14 +160,17 @@ if __name__ == '__main__':
 
     import rtk
     im_names = args.frames
-    for im_name in im_names:
-        print '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
-        print 'Demo for data/demo/{}'.format(im_name)
-
+    for ind, im_name in enumerate(im_names):
         base = im_name[:-4]
         bbox_fname = base + '_bbox.mat'
         img_out_fname = base + '_detections.jpg'
-        if all(map(os.path.exists, (bbox_fname, img_out_fname))): continue
-        demo(net, im_name, bbox_fname, img_out_fname)
 
-    plt.show()
+        if args.n_every is not None and ind % args.n_every != 0:
+            continue
+        if all(map(os.path.exists, (bbox_fname, img_out_fname))): 
+            continue
+
+        print '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
+        print 'Demo for data/demo/{}'.format(im_name)
+
+        demo(net, im_name, bbox_fname, img_out_fname)
