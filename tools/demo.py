@@ -23,6 +23,7 @@ import numpy as np
 import scipy.io as sio
 import caffe, os, sys, cv2
 import argparse
+import scipy.io
 
 CLASSES = ('__background__',
            'aeroplane', 'bicycle', 'bird', 'boat',
@@ -44,8 +45,9 @@ def vis_detections(im, class_name, dets, thresh=0.5):
         return
 
     im = im[:, :, (2, 1, 0)]
-    fig, ax = plt.subplots(figsize=(12, 12))
-    ax.imshow(im, aspect='equal')
+    #fig, ax = plt.subplots(figsize=(12, 12))
+    #ax.imshow(im, aspect='equal')
+    ax = plt.gca()
     for i in inds:
         bbox = dets[i, :4]
         score = dets[i, -1]
@@ -61,22 +63,25 @@ def vis_detections(im, class_name, dets, thresh=0.5):
                 bbox=dict(facecolor='blue', alpha=0.5),
                 fontsize=14, color='white')
 
-    ax.set_title(('{} detections with '
-                  'p({} | box) >= {:.1f}').format(class_name, class_name,
-                                                  thresh),
-                  fontsize=14)
-    plt.axis('off')
-    plt.tight_layout()
-    plt.draw()
-    plt.show()
+    #ax.set_title(('{} detections with '
+                  #'p({} | box) >= {:.1f}').format(class_name, class_name,
+                                                  #thresh),
+                  #fontsize=14)
 
-def demo(net, image_name):
+def demo(net, image_name, bbox_fname, img_out_fname):
     """Detect object classes in an image using pre-computed object proposals."""
 
     # Load the demo image
     #im_file = os.path.join(cfg.DATA_DIR, 'demo', image_name)
     im = cv2.imread(image_name)
     assert im is not None
+    #im = cv2.resize(im, (0, 0), fx=4, fy=4)
+
+    plt.gcf().clear()
+    plt.subplot(1,1,1)
+    ax = plt.gca()
+    #fig, ax = plt.subplots(figsize=(12, 12))
+    ax.imshow(im, aspect='equal')
 
     # Detect all object classes and regress object bounds
     timer = Timer()
@@ -91,13 +96,21 @@ def demo(net, image_name):
     NMS_THRESH = 0.3
     for cls_ind, cls in enumerate(CLASSES[1:]):
         cls_ind += 1 # because we skipped background
+        if cls != 'car': continue
         cls_boxes = boxes[:, 4*cls_ind:4*(cls_ind + 1)]
         cls_scores = scores[:, cls_ind]
         dets = np.hstack((cls_boxes,
                           cls_scores[:, np.newaxis])).astype(np.float32)
         keep = nms(dets, NMS_THRESH)
         dets = dets[keep, :]
+        scipy.io.savemat(bbox_fname, dict(dets=dets))
         vis_detections(im, cls, dets, thresh=CONF_THRESH)
+
+    plt.axis('off')
+    plt.tight_layout()
+    plt.draw()
+
+    plt.savefig(img_out_fname)
 
 def parse_args():
     """Parse input arguments."""
@@ -109,7 +122,7 @@ def parse_args():
                         action='store_true')
     parser.add_argument('--net', dest='demo_net', help='Network to use [vgg16]',
                         choices=NETS.keys(), default='vgg16')
-    parser.add_argument('dir')
+    parser.add_argument('frames', nargs='*')
 
     args = parser.parse_args()
 
@@ -145,10 +158,15 @@ if __name__ == '__main__':
         _, _= im_detect(net, im)
 
     import rtk
-    im_names = [f for f in rtk.system.ls(args.dir) if 'png' in f]
+    im_names = args.frames
     for im_name in im_names:
         print '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
         print 'Demo for data/demo/{}'.format(im_name)
-        demo(net, im_name)
+
+        base = im_name[:-4]
+        bbox_fname = base + '_bbox.mat'
+        img_out_fname = base + '_detections.jpg'
+        if all(map(os.path.exists, (bbox_fname, img_out_fname))): continue
+        demo(net, im_name, bbox_fname, img_out_fname)
 
     plt.show()
